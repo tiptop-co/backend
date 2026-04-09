@@ -1,0 +1,141 @@
+name: AI Code Review (YandexGPT)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare PR Context
+        id: context
+        run: |
+          # 1. Дифф (только код, без локов, билдов, минифицированных файлов)
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- \
+            '*.py' '*.js' '*.ts' '*.jsx' '*.tsx' '*.go' '*.rs' '*.java' '*.kt' \
+            '*.cpp' '*.c' '*.hpp' '*.h' '*.rb' '*.php' '*.swift' '*.css' '*.html' \
+            '*.json' '*.yaml' '*.yml' '*.toml' '*.sql' '*.sh' '*.vue' '*.svelte')
+
+          # Обрезаем до ~12к символов (~4000 токенов), чтобы уложиться в контекст
+          if [ ${#DIFF} -gt 12000 ]; then
+            DIFF="${DIFF:0:12000}\n... [Дифф обрезан из-за лимита контекста]"
+          fi
+          echo "diff<<GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+
+          # 2. Список коммитов
+          COMMITS=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:"- %s (%h)" | head -15)
+          echo "commits<<GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+
+          # 3. Извлекаем номер Issue/тикета из тела PR (#123, PROJ-123, JIRA-456 и т.п.)
+          PR_BODY="${{ github.event.pull_request.body }}"
+          # Ищем первый номер вида #123
+          ISSUE_NUM=$(echo "$PR_BODY" | grep -oP '(?<=#)\d+' | head -1 || true)
+          echo "issue_num=${ISSUE_NUM:-}" >> $GITHUB_OUTPUT
+
+      - name: Fetch Issue Description
+        id: ticket
+        if: steps.context.outputs.issue_num != ''
+        run: |
+          ISSUE_DATA=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ steps.context.outputs.issue_num }}")
+          ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body // "Описание отсутствует"')
+          echo "ticket_body<<GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
+          echo "GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+
+      - name: Call YandexGPT
+        id: llm
+        env:
+          YANDEX_API_KEY: ${{ secrets.YANDEXGPT_API_KEY }}
+        run: |
+          TICKET="${{ steps.ticket.outputs.ticket_body || github.event.pull_request.body || 'Задача не указана' }}"
+          COMMITS="${{ steps.context.outputs.commits }}"
+          DIFF="${{ steps.context.outputs.diff }}"
+
+          # Формируем JSON-пейлоад через jq (безопасно экранирует кавычки и переносы строк)
+          PAYLOAD=$(jq -n \
+            --arg ticket "$TICKET" \
+            --arg commits "$COMMITS" \
+            --arg diff "$DIFF" \
+            '{
+              model: "yandexgpt/latest",
+              messages: [
+                {
+                  role: "system",
+                  content: "Ты Senior Code Reviewer. Анализируй код строго по задаче. Ищи баги, уязвимости, проблемы производительности и стиля. Давай конкретные исправления. Отвечай на русском, в Markdown. НЕ выдумывай файлы или строки, которых нет в диффе."
+                },
+                {
+                  role: "user",
+                  content: ("ЗАДАЧА:\n" + $ticket + "\n\nКОММИТЫ:\n" + $commits + "\n\nДИФФ:\n" + $diff + "\n\nИНСТРУКЦИЯ:\n1. Соответствует ли код задаче?\n2. Найди баги/риски/утечки.\n3. Предложи оптимизации и best practices.\n4. Приведи примеры исправлений с указанием файлов и строк.\n5. Если всё ок — напиши кратко: \"Готово к мержу\".")
+                }
+              ],
+              max_tokens: 2500,
+              temperature: 0.2
+            }')
+
+          # Вызов YandexGPT (OpenAI-compatible endpoint)
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://llm.api.cloud.yandex.net/compatible-mode/v1/chat/completions" \
+            -H "Authorization: Api-Key $YANDEX_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            REVIEW="Ошибка YandexGPT (HTTP $HTTP_CODE):\n\`\`\`json\n$BODY\n\`\`\`"
+          else
+            REVIEW=$(echo "$BODY" | jq -r '.choices[0].message.content // "Пустой ответ от модели"')
+          fi
+
+          {
+            echo "review<<GITHUB_OUTPUT_EOF"
+            echo "$REVIEW"
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Post Review to PR & Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = `${{ steps.llm.outputs.review }}`;
+            const prNum = context.issue.number;
+            const issueNum = `${{ steps.context.outputs.issue_num }}`;
+
+            const commentBody = `**YandexGPT Code Review**\n\n${review}`;
+
+            // 1. Коммент в PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNum,
+              body: commentBody
+            });
+
+            // 2. Коммент в тикет (если найден и это не сам PR)
+            if (issueNum && !isNaN(issueNum) && parseInt(issueNum) !== prNum) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNum),
+                body: `**YandexGPT Code Review (PR #${prNum})**\n\n${review}`
+              });
+            }
+
+            core.info(`Review posted to PR #${prNum}${issueNum ? ` and Issue #${issueNum}` : ''}`);
