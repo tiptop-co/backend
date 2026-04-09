@@ -1,4 +1,4 @@
-name: OpenAI Commit Review
+name: Mistral Commit Review
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - demo-check-b
 
 jobs:
-  openai_commit_review:
+  mistral_commit_review:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,16 +20,16 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install --upgrade pip && pip install openai requests
+        run: pip install --upgrade pip && pip install requests
 
       - name: Gather latest commits
         run: git log -n 5 --pretty=format:"%s%n%b" > commit_messages.txt
 
-      - name: Run OpenAI review
+      - name: Run Mistral review
         env:
-          API_KEY: ${{ secrets.API_KEY }}
-          TOKEN: ${{ secrets.TOKEN }}
-        run: python scripts/llm_review.py \
+          MISTRAL_KEY: ${{ secrets.MISTRAL_KEY }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        run: python scripts/llm_review_mistral.py \
               --commit-messages commit_messages.txt \
               --branch demo-check-b \
               --repo tiptop-co/backend

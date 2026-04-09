@@ -1,8 +1,8 @@
-import openai
 import argparse
 import requests
 import os
 
+# --- Аргументы ---
 parser = argparse.ArgumentParser()
 parser.add_argument("--commit-messages")
 parser.add_argument("--branch")
@@ -27,23 +27,42 @@ prompt = f"""
 Сделай ревью в короткой, структурированной форме.
 """
 
-response = openai.chat.completions.create(
-    model="gpt-4.1-mini",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.2,
-)
+MISTRAL_KEY = os.environ.get("MISTRAL_KEY")
+if not MISTRAL_KEY:
+    raise ValueError("MISTRAL_KEY не найден в переменных окружения")
 
-review_text = response.choices[0].message.content
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+
+headers = {
+    "Authorization": f"Bearer {MISTRAL_KEY}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "model": "mistral-small-latest",
+    "messages": [
+        {"role": "user", "content": prompt}
+    ],
+    "temperature": 0.2
+}
+
+resp = requests.post(MISTRAL_URL, headers=headers, json=data)
+resp.raise_for_status()
+review_text = resp.json()["choices"][0]["message"]["content"]
+
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+if not GITHUB_TOKEN:
+    raise ValueError("GITHUB_TOKEN не найден в переменных окружения")
 
 url = f"https://api.github.com/repos/{args.repo}/issues"
 res = requests.post(
     url,
     headers={
-        "Authorization": f"token {os.environ.get('TOKEN')}",
+        "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     },
     json={
-        "title": f"OpenAI commit review for branch {args.branch}",
+        "title": f"Commit review for branch {args.branch}",
         "body": review_text
     }
 )
