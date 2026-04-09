@@ -1,15 +1,15 @@
-import openai
+import os
 import argparse
 import requests
-import os
+from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--commit-messages")
 parser.add_argument("--branch")
 parser.add_argument("--repo")
 args = parser.parse_args()
+args = parser.parse_args()
 
-# Читаем коммиты
 with open(args.commit_messages) as f:
     commits = f.read()
 
@@ -26,24 +26,26 @@ prompt = f"""
 Сделай ревью в короткой, структурированной форме.
 """
 
-# Запрос к GPT
-response = openai.ChatCompletion.create(
-    model="gpt-4.1-mini",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.2
+client = Anthropic(api_key=os.environ.get("CLAUDE_API_KEY"))
+
+response = client.completions.create(
+    model="claude-2.0",
+    prompt=f"{HUMAN_PROMPT}{prompt}{AI_PROMPT}",
+    max_tokens_to_sample=1000,
+    stop_sequences=[HUMAN_PROMPT]
 )
 
-review_text = response['choices'][0]['message']['content']
+review_text = response["completion"].strip()
 
-# Публикуем комментарий в PR (для теста можно создать новый Issue с названием ветки)
 url = f"https://api.github.com/repos/{args.repo}/issues"
-res = requests.post(url,
+res = requests.post(
+    url,
     headers={
         "Authorization": f"token {os.environ.get('GITHUB_TOKEN')}",
         "Accept": "application/vnd.github+json"
     },
     json={
-        "title": f"LLM commit review for branch {args.branch}",
+        "title": f"Claude commit review for branch {args.branch}",
         "body": review_text
     }
 )
