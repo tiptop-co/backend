@@ -1,22 +1,13 @@
-import argparse
 import requests
 import os
 
-# --- Аргументы ---
-parser = argparse.ArgumentParser()
-parser.add_argument("--commit-messages")
-parser.add_argument("--branch")
-parser.add_argument("--repo")
-args = parser.parse_args()
 
-print("Parsed args:", args)
-
-with open(args.commit_messages) as f:
+with open("commit_messages.txt") as f:
     commits = f.read()
 
 prompt = f"""
 Ты LLM-ревьюер коммитов.
-Прочитай последние коммиты в ветке {args.branch} и дай краткое ревью:
+Прочитай последние коммиты в ветке demo-check-b и дай краткое ревью:
 - Логика изменений
 - Стиль и понятность сообщений
 - Возможные проблемы
@@ -50,11 +41,11 @@ resp = requests.post(MISTRAL_URL, headers=headers, json=data)
 resp.raise_for_status()
 review_text = resp.json()["choices"][0]["message"]["content"]
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("TOKEN")
 if not GITHUB_TOKEN:
     raise ValueError("GITHUB_TOKEN не найден в переменных окружения")
 
-url = f"https://api.github.com/repos/{args.repo}/issues"
+url = f"https://api.github.com/repos/tiptop-co/backend/issues"
 res = requests.post(
     url,
     headers={
@@ -62,7 +53,7 @@ res = requests.post(
         "Accept": "application/vnd.github+json"
     },
     json={
-        "title": f"Commit review for branch {args.branch}",
+        "title": f"Commit review for branch demo-check-b",
         "body": review_text
     }
 )
