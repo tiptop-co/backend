@@ -30,7 +30,7 @@ jobs:
           BASE_REF="${{ github.base_ref }}"
           BASE_REF=${BASE_REF:-$DEFAULT_BRANCH}
 
-          git fetch origin $BASE_REF --depth=1
+          git fetch origin $BASE_REF
 
           DIFF=$(git diff origin/$BASE_REF...HEAD -- \
             '*.py' '*.js' '*.ts' '*.jsx' '*.tsx' '*.go' '*.rs' '*.java' \
