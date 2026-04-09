@@ -1,28 +1,31 @@
 import requests
 import os
 
-
 with open("commit_messages.txt") as f:
     commits = f.read()
 
+with open("pr_description.txt") as f:
+    pr_text = f.read()
+
 prompt = f"""
-Ты LLM-ревьюер коммитов.
-Прочитай последние коммиты в ветке demo-check-b и дай краткое ревью:
-- Логика изменений
-- Стиль и понятность сообщений
-- Возможные проблемы
+Ты LLM-ревьюер pull request.
+
+Описание PR:
+{pr_text}
 
 Коммиты:
 {commits}
 
-Сделай ревью в короткой, структурированной форме.
+Сделай краткое ревью:
+- соответствует ли описание изменениям
+- логика изменений
+- проблемы
+- что стоит проверить
 """
 
 MISTRAL_KEY = os.environ.get("MISTRAL_KEY")
-if not MISTRAL_KEY:
-    raise ValueError("MISTRAL_KEY не найден в переменных окружения")
-
-MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+GITHUB_TOKEN = os.environ.get("TOKEN")
+PR_NUMBER = os.environ.get("PR_NUMBER")
 
 headers = {
     "Authorization": f"Bearer {MISTRAL_KEY}",
@@ -31,34 +34,30 @@ headers = {
 
 data = {
     "model": "mistral-small-latest",
-    "messages": [
-        {"role": "user", "content": prompt}
-    ],
+    "messages": [{"role": "user", "content": prompt}],
     "temperature": 0.2
 }
 
-resp = requests.post(MISTRAL_URL, headers=headers, json=data)
+resp = requests.post(
+    "https://api.mistral.ai/v1/chat/completions",
+    headers=headers,
+    json=data
+)
+
 resp.raise_for_status()
 review_text = resp.json()["choices"][0]["message"]["content"]
 
-GITHUB_TOKEN = os.environ.get("TOKEN")
-if not GITHUB_TOKEN:
-    raise ValueError("GITHUB_TOKEN не найден в переменных окружения")
+repo = os.environ.get("GITHUB_REPOSITORY")
 
-url = f"https://api.github.com/repos/tiptop-co/backend/issues"
+comment_url = f"https://api.github.com/repos/{repo}/issues/{PR_NUMBER}/comments"
+
 res = requests.post(
-    url,
+    comment_url,
     headers={
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     },
-    json={
-        "title": f"Commit review for branch demo-check-b",
-        "body": review_text
-    }
+    json={"body": f"Mistral PR Review\n\n{review_text}"}
 )
 
-if res.status_code == 201:
-    print("Commit review posted successfully")
-else:
-    print("Failed to post review:", res.text)
+print(res.status_code, res.text)
