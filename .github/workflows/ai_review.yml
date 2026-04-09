@@ -1,4 +1,4 @@
-name: AI Code Review (YandexGPT)
+name: AI Code Review (GigaChat)
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Дифф (только код)
+          # Дифф (только код, ограничение 10000 символов)
           DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- \
             '*.py' '*.js' '*.ts' '*.jsx' '*.tsx' '*.go' '*.rs' '*.java' \
             '*.kt' '*.cpp' '*.c' '*.hpp' '*.h' '*.rb' '*.php' '*.swift' \
@@ -32,17 +32,17 @@ jobs:
           # Коммиты
           COMMITS=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:"- %s (%h)" | head -10)
           
-          # Номер тикета из тела PR
+          # Номер тикета из тела PR (#123, PROJ-456 и т.п.)
           PR_BODY="${{ github.event.pull_request.body }}"
           ISSUE_NUM=$(echo "$PR_BODY" | grep -oP '(?<=#)\d+' | head -1 || echo "")
           
-          # Кодируем в base64 для безопасной передачи
+          # Кодируем в base64 для безопасной передачи между шагами
           echo "diff_b64=$(echo -n "$DIFF" | base64 -w0)" >> $GITHUB_OUTPUT
           echo "commits_b64=$(echo -n "$COMMITS" | base64 -w0)" >> $GITHUB_OUTPUT
           echo "ticket_b64=$(echo -n "$PR_BODY" | base64 -w0)" >> $GITHUB_OUTPUT
           echo "issue_num=$ISSUE_NUM" >> $GITHUB_OUTPUT
 
-      - name: Fetch Issue (if exists)
+      - name: Fetch Issue Description
         id: ticket
         if: steps.context.outputs.issue_num != ''
         run: |
@@ -52,86 +52,99 @@ jobs:
           ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body // ""')
           echo "issue_body_b64=$(echo -n "$ISSUE_BODY" | base64 -w0)" >> $GITHUB_OUTPUT
 
-      - name: Call YandexGPT
+      - name: Call GigaChat
         id: llm
         env:
-          YANDEX_API_KEY: ${{ secrets.YANDEXGPT_API_KEY }}
+          GIGACHAT_AUTH_KEY: ${{ secrets.GIGACHAT_AUTH_KEY }}
         run: |
           set -euo pipefail
           
-          # Декодируем base64
+          # Декодируем контекст из base64
           DIFF=$(echo "${{ steps.context.outputs.diff_b64 }}" | base64 -d)
           COMMITS=$(echo "${{ steps.context.outputs.commits_b64 }}" | base64 -d)
           TICKET="${{ steps.ticket.outputs.issue_body_b64 }}" && TICKET=$(echo "$TICKET" | base64 -d)
           [ -z "$TICKET" ] && TICKET="${{ steps.context.outputs.ticket_b64 }}" && TICKET=$(echo "$TICKET" | base64 -d)
           [ -z "$TICKET" ] && TICKET="Задача не указана"
           
-          # Формируем промпт
+          # Формируем промпт для code review
           PROMPT="Ты Senior Code Reviewer. Анализируй код строго по задаче.
           
-          🎯 ЗАДАЧА:
+          ЗАДАЧА:
           $TICKET
 
-          📝 КОММИТЫ:
+          КОММИТЫ:
           $COMMITS
 
-          📄 ДИФФ:
+          ДИФФ:
           $DIFF
 
-          📌 ИНСТРУКЦИЯ:
+          ИНСТРУКЦИЯ:
           1. Соответствует ли код задаче?
           2. Найди баги, уязвимости, проблемы производительности.
-          3. Предложи конкретные исправления с примерами.
-          4. Отвечай на русском, в Markdown. Не выдумывай файлы, которых нет в диффе."
+          3. Предложи конкретные исправления с примерами кода.
+          4. Отвечай на русском, в формате Markdown.
+          5. Не выдумывай файлы или строки, которых нет в диффе."
 
-          python3 << 'PYEOF'
-          import os, sys, json, urllib.request
+          # Получаем access_token от GigaChat (OAuth 2.0 Client Credentials)
+          # Для тестов: --insecure (без проверки сертификата)
+          # Для продакшена: уберите --insecure и добавьте --cacert /path/to/cert.pem
+          AUTH_RESPONSE=$(curl -s -X POST \
+            "https://ngw.devices.sberbank.ru:9443/api/v2/oauth" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Accept: application/json" \
+            -H "RqUID: ${GITHUB_RUN_ID:-test}" \
+            -H "Authorization: Basic $GIGACHAT_AUTH_KEY" \
+            --data-urlencode "scope=GIGACHAT_API_PERS" \
+            --insecure)
+          
+          ACCESS_TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.access_token // empty')
+          
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "Auth failed: $AUTH_RESPONSE" >&2
+            REVIEW="Ошибка аутентификации GigaChat. Проверьте GIGACHAT_AUTH_KEY."
+          else
+            # Вызов чата с полученным токеном
+            CHAT_RESPONSE=$(curl -s -X POST \
+              "https://gigachat.devices.sberbank.ru/api/v1/chat/completions" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              --insecure \
+              -d "{
+                \"model\": \"GigaChat:latest\",
+                \"messages\": [
+                  {\"role\": \"system\", \"content\": \"Ты строгий senior code reviewer. Отвечай по делу, без воды. Если код плохой — говори прямо.\"},
+                  {\"role\": \"user\", \"content\": $(echo "$PROMPT" | jq -Rs .)}
+                ],
+                \"max_tokens\": 2000,
+                \"temperature\": 0.2,
+                \"repetition_penalty\": 1.1
+              }")
+            
+            # Парсим ответ
+            REVIEW=$(echo "$CHAT_RESPONSE" | jq -r '.choices[0].message.content // "Пустой ответ от модели"')
+            
+            # Логирование для отладки
+            echo "GigaChat responded" >&2
+          fi
+          
+          # Сохраняем результат в GITHUB_OUTPUT (экранируем спецсимволы)
+          {
+            echo "review<<GITHUB_OUTPUT_EOF"
+            echo "$REVIEW"
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
 
-          api_key = os.environ["YANDEX_API_KEY"]
-          prompt = '''${PROMPT}'''
-
-          payload = json.dumps({
-              "model": "yandexgpt/latest",
-              "messages": [
-                  {"role": "system", "content": "Ты строгий code reviewer. Отвечай по делу, без воды."},
-                  {"role": "user", "content": prompt}
-              ],
-              "max_tokens": 2000,
-              "temperature": 0.2
-          }).encode("utf-8")
-
-          req = urllib.request.Request(
-              "https://llm.api.cloud.yandex.net/compatible-mode/v1/chat/completions",
-              data=payload,
-              headers={
-                  "Authorization": f"Api-Key {api_key}",
-                  "Content-Type": "application/json"
-              },
-              method="POST"
-          )
-
-          try:
-              with urllib.request.urlopen(req, timeout=60) as resp:
-                  result = json.loads(resp.read().decode("utf-8"))
-                  review = result.get("choices", [{}])[0].get("message", {}).get("content", "Пустой ответ")
-                  
-                  review_escaped = review.replace("%", "%25").replace("\n", "%0A").replace("\r", "%0D")
-                  print(f"review={review_escaped}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
-          except Exception as e:
-              print(f"review=Ошибка: {str(e)}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
-              sys.exit(0)
-          PYEOF
-
-      - name: Post Review
+      - name: Post Review to PR & Issue
         uses: actions/github-script@v7
         with:
           script: |
-            const review = decodeURIComponent(`${{ steps.llm.outputs.review }}`);
+            const review = `${{ steps.llm.outputs.review }}`;
             const prNum = context.issue.number;
             const issueNum = `${{ steps.context.outputs.issue_num }}`;
             
-            const body = `**YandexGPT Review**\n\n${review}`;
+            const body = `**GigaChat Code Review**\n\n${review}`;
             
+            // 1. Коммент в PR (всегда)
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -139,11 +152,29 @@ jobs:
               body
             });
             
+            // 2. Коммент в issue (если существует)
             if (issueNum && !isNaN(issueNum) && parseInt(issueNum) !== prNum) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parseInt(issueNum),
-                body: ` **Review for PR №${prNum}**\n\n${review}`
-              });
+              try {
+                // Проверяем существует ли issue
+                await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(issueNum)
+                });
+            
+                // Если существует — пишем комментарий
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(issueNum),
+                  body: `**GigaChat Review (PR #${prNum})**\n\n${review}`
+                });
+            
+                core.info(`Review posted to Issue #${issueNum}`);
+            
+              } catch (e) {
+                core.warning(`Issue #${issueNum} not found or not accessible, skipping`);
+              }
             }
+            
+            core.info(`Review posted to PR #${prNum}`);
