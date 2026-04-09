@@ -27,8 +27,8 @@ jobs:
 
       - name: Run OpenAI review
         env:
-          OPENAI_API_KEY: ${{ secrets.API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          API_KEY: ${{ secrets.API_KEY }}
+          TOKEN: ${{ secrets.TOKEN }}
         run: python scripts/llm_review.py \
               --commit-messages commit_messages.txt \
               --branch demo-check-b \

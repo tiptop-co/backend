@@ -9,7 +9,8 @@ parser.add_argument("--branch")
 parser.add_argument("--repo")
 args = parser.parse_args()
 
-# Читаем коммиты
+print("Parsed args:", args)
+
 with open(args.commit_messages) as f:
     commits = f.read()
 
@@ -26,19 +27,19 @@ prompt = f"""
 Сделай ревью в короткой, структурированной форме.
 """
 
-response = openai.ChatCompletion.create(
+response = openai.chat.completions.create(
     model="gpt-4.1-mini",
     messages=[{"role": "user", "content": prompt}],
-    temperature=0.2
+    temperature=0.2,
 )
 
-review_text = response['choices'][0]['message']['content']
+review_text = response.choices[0].message.content
 
 url = f"https://api.github.com/repos/{args.repo}/issues"
 res = requests.post(
     url,
     headers={
-        "Authorization": f"token {os.environ.get('GITHUB_TOKEN')}",
+        "Authorization": f"token {os.environ.get('TOKEN')}",
         "Accept": "application/vnd.github+json"
     },
     json={
