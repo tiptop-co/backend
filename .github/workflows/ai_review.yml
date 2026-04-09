@@ -1,4 +1,4 @@
-name: LLM Commit Review
+name: Claude Commit Review
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - demo-check-b
 
 jobs:
-  llm_commit_review:
+  claude_commit_review:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -14,14 +14,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install anthropic requests
+
       - name: Gather latest commits
         run: git log -n 5 --pretty=format:"%s%n%b" > commit_messages.txt
 
-      - name: Run LLM review
+      - name: Run Claude review
         env:
-          OPENAI_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/llm_review.py \
               --commit-messages commit_messages.txt \
-              --branch ${{ github.ref_name }} \
-              --repo ${{ github.repository }}
+              --branch demo-check-b \
+              --repo tiptop-co/backend
