@@ -25,15 +25,19 @@ jobs:
         id: context
         run: |
           set -euo pipefail
-          
-          # Дифф (только код, ограничение 10000 символов)
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- \
+
+          DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+          BASE_REF="${{ github.base_ref }}"
+          BASE_REF=${BASE_REF:-$DEFAULT_BRANCH}
+
+          git fetch origin $BASE_REF --depth=1
+
+          DIFF=$(git diff origin/$BASE_REF...HEAD -- \
             '*.py' '*.js' '*.ts' '*.jsx' '*.tsx' '*.go' '*.rs' '*.java' \
             '*.kt' '*.cpp' '*.c' '*.hpp' '*.h' '*.rb' '*.php' '*.swift' \
             '*.css' '*.html' '*.json' '*.yaml' '*.yml' '*.toml' '*.sql' '*.sh' | head -c 10000)
-          
-          # Коммиты
-          COMMITS=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:"- %s (%h)" | head -10)
+
+          COMMITS=$(git log origin/$BASE_REF..HEAD --pretty=format:"- %s (%h)" | head -10)
           
           # Номер тикета из тела PR (#123, PROJ-456 и т.п.)
           PR_BODY="${{ github.event.pull_request.body }}"
