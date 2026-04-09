@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
+  push:
+    branches:
+      - demo-check-b
 
 permissions:
   contents: read
