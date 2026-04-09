@@ -92,17 +92,13 @@ jobs:
           4. Отвечай на русском, в формате Markdown.
           5. Не выдумывай файлы или строки, которых нет в диффе."
 
-          # Получаем access_token от GigaChat (OAuth 2.0 Client Credentials)
-          # Для тестов: --insecure (без проверки сертификата)
-          # Для продакшена: уберите --insecure и добавьте --cacert /path/to/cert.pem
-          AUTH_RESPONSE=$(curl -s -X POST \
-            "https://ngw.devices.sberbank.ru:9443/api/v2/oauth" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -H "Accept: application/json" \
-            -H "RqUID: ${GITHUB_RUN_ID:-test}" \
-            -H "Authorization: Basic $GIGACHAT_AUTH_KEY" \
-            --data-urlencode "scope=GIGACHAT_API_PERS" \
-            --insecure)
+          AUTH_RESPONSE=$(curl -s --http1.1 -k -X POST \
+          "https://ngw.devices.sberbank.ru:9443/api/v2/oauth" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -H "Accept: application/json" \
+          -H "RqUID: ${GITHUB_RUN_ID:-test}" \
+          -H "Authorization: Basic $GIGACHAT_AUTH_KEY" \
+          --data-urlencode "scope=GIGACHAT_API_PERS")
           
           ACCESS_TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.access_token // empty')
           
@@ -111,7 +107,7 @@ jobs:
             REVIEW="Ошибка аутентификации GigaChat. Проверьте GIGACHAT_AUTH_KEY."
           else
             # Вызов чата с полученным токеном
-            CHAT_RESPONSE=$(curl -s -X POST \
+            CHAT_RESPONSE=$(curl -s --http1.1 -k -X POST \
               "https://gigachat.devices.sberbank.ru/api/v1/chat/completions" \
               -H "Authorization: Bearer $ACCESS_TOKEN" \
               -H "Content-Type: application/json" \
@@ -147,41 +143,31 @@ jobs:
           script: |
             const review = `${{ steps.llm.outputs.review }}`;
             const prNum = context.issue.number;
-            const issueNum = `${{ steps.context.outputs.issue_num }}`;
+            const issueNumRaw = `${{ steps.context.outputs.issue_num }}`;
             
             const body = `**GigaChat Code Review**\n\n${review}`;
             
-            // 1. Коммент в PR (всегда)
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNum,
-              body
-            });
+            // comment in PR
+            if (prNum) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNum,
+                body
+              });
+            }
             
-            // 2. Коммент в issue (если существует)
-            if (issueNum && !isNaN(issueNum) && parseInt(issueNum) !== prNum) {
+            // comment in issue only if valid
+            const issueNum = parseInt(issueNumRaw);
+            if (!isNaN(issueNum) && issueNum !== prNum) {
               try {
-                // Проверяем существует ли issue
-                await github.rest.issues.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: parseInt(issueNum)
-                });
-            
-                // Если существует — пишем комментарий
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: parseInt(issueNum),
+                  issue_number: issueNum,
                   body: `**GigaChat Review (PR #${prNum})**\n\n${review}`
                 });
-            
-                core.info(`Review posted to Issue #${issueNum}`);
-            
               } catch (e) {
-                core.warning(`Issue #${issueNum} not found or not accessible, skipping`);
+                core.warning(`Issue ${issueNum} not found, skipping`);
               }
             }
-            
-            core.info(`Review posted to PR #${prNum}`);
