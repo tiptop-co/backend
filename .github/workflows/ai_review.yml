@@ -5,8 +5,6 @@ on:
     types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
   push:
-    branches:
-      - demo-check-b
 
 permissions:
   contents: read
@@ -26,22 +24,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
-          BASE_REF="${{ github.base_ref }}"
-          BASE_REF=${BASE_REF:-$DEFAULT_BRANCH}
+          # Текущая ветка как базовая
+          BASE_REF=$(git rev-parse --abbrev-ref HEAD)
+          [ -z "$BASE_REF" ] && BASE_REF="main"
+          git fetch origin $BASE_REF
 
-          git fetch origin "$BASE_REF"
-
-          # Собираем дифф и коммиты
-          DIFF=$(git diff origin/"$BASE_REF"...HEAD -- \
+          # Дифф и коммиты
+          DIFF=$(git diff origin/$BASE_REF...HEAD -- \
             '*.py' '*.js' '*.ts' '*.jsx' '*.tsx' '*.go' '*.rs' '*.java' \
             '*.kt' '*.cpp' '*.c' '*.hpp' '*.h' '*.rb' '*.php' '*.swift' \
-            '*.css' '*.html' '*.json' '*.yaml' '*.yml' '*.toml' '*.sql' '*.sh' \
-            | head -c 8000)  # ограничение размера диффа
+            '*.css' '*.html' '*.json' '*.yaml' '*.yml' '*.toml' '*.sql' '*.sh' | head -c 10000)
 
-          COMMITS=$(git log origin/"$BASE_REF"..HEAD --pretty=format:"- %s (%h)" | head -10)
+          COMMITS=$(git log origin/$BASE_REF..HEAD --pretty=format:"- %s (%h)" | head -10)
 
-          # Номер тикета из тела PR (#123, PROJ-456)
+          # Номер тикета из PR
           PR_BODY="${{ github.event.pull_request.body }}"
           ISSUE_NUM=$(echo "$PR_BODY" | grep -oP '(?<=#)\d+' | head -1 || echo "")
 
@@ -68,14 +64,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Декодируем контекст
           DIFF=$(echo "${{ steps.context.outputs.diff_b64 }}" | base64 -d)
           COMMITS=$(echo "${{ steps.context.outputs.commits_b64 }}" | base64 -d)
           TICKET="${{ steps.ticket.outputs.issue_body_b64 }}" && TICKET=$(echo "$TICKET" | base64 -d)
           [ -z "$TICKET" ] && TICKET="${{ steps.context.outputs.ticket_b64 }}" && TICKET=$(echo "$TICKET" | base64 -d)
           [ -z "$TICKET" ] && TICKET="Задача не указана"
 
-          # Формируем промпт
           PROMPT="Ты Senior Code Reviewer. Анализируй код строго по задаче.
 
           ЗАДАЧА:
@@ -94,7 +88,6 @@ jobs:
           4. Отвечай на русском, в формате Markdown.
           5. Не выдумывай файлы или строки, которых нет в диффе."
 
-          # Отправляем запрос к Claude Code
           RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/chat/completions" \
             -H "x-api-key: $CLAUDE_API_KEY" \
             -H "Content-Type: application/json" \
@@ -108,20 +101,11 @@ jobs:
               \"temperature\": 0.2
             }")
 
-          # Парсим ответ безопасно
           REVIEW=$(echo "$RESPONSE" | jq -r '.completion // "Пустой ответ от модели"')
 
-          # Если пустой, выдаём сообщение об ошибке
-          if [ -z "$REVIEW" ] || [ "$REVIEW" = "null" ]; then
-            REVIEW="Ошибка: модель не вернула ответ."
-          fi
-
-          # Сохраняем результат
-          {
-            echo "review<<GITHUB_OUTPUT_EOF"
-            echo "$REVIEW"
-            echo "GITHUB_OUTPUT_EOF"
-          } >> $GITHUB_OUTPUT
+          echo "review<<GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
+          echo "$REVIEW" >> $GITHUB_OUTPUT
+          echo "GITHUB_OUTPUT_EOF" >> $GITHUB_OUTPUT
 
       - name: Post Review to PR & Issue
         uses: actions/github-script@v7
@@ -130,9 +114,9 @@ jobs:
             const review = `${{ steps.llm.outputs.review }}`;
             const prNum = context.issue.number;
             const issueNumRaw = `${{ steps.context.outputs.issue_num }}`;
-            
+
             const body = `**Claude Code Review**\n\n${review}`;
-            
+
             if (prNum) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
@@ -141,7 +125,7 @@ jobs:
                 body
               });
             }
-            
+
             const issueNum = parseInt(issueNumRaw);
             if (!isNaN(issueNum) && issueNum !== prNum) {
               try {
