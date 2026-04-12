@@ -1,0 +1,38 @@
+name: Mistral PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  mistral_pr_review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install requests
+
+      - name: Gather PR commits
+        run: |
+          git log origin/${{ github.base_ref }}..HEAD \
+          --pretty=format:"%s%n%b" > commit_messages.txt
+
+      - name: Save PR description
+        run: echo "${{ github.event.pull_request.body }}" > pr_description.txt
+
+      - name: Run Mistral review
+        env:
+          MISTRAL_KEY: ${{ secrets.MISTRAL_KEY }}
+          TOKEN: ${{ secrets.TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 scripts/llm_review.py
