@@ -30,6 +30,9 @@ jobs:
       - name: Save PR description
         run: echo "${{ github.event.pull_request.body }}" > pr_description.txt
 
+      - name: Save PR diff
+        run: git diff origin/${{ github.base_ref }}..HEAD > pr_diff.txt
+
       - name: Run Mistral review
         env:
           MISTRAL_KEY: ${{ secrets.MISTRAL_KEY }}

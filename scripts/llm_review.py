@@ -7,6 +7,9 @@ with open("commit_messages.txt") as f:
 with open("pr_description.txt") as f:
     pr_text = f.read()
 
+with open ("pr_diff.txt") as f:
+    diffs = f.read()
+
 prompt = f"""
 Ты LLM-ревьюер pull request.
 
@@ -15,6 +18,9 @@ prompt = f"""
 
 Коммиты:
 {commits}
+
+Изменения:
+{diffs}
 
 Сделай краткое ревью:
 - соответствует ли описание изменениям
