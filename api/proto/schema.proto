@@ -1,0 +1,529 @@
+syntax = "proto3";
+
+package tiptop.v1;
+
+option go_package = "github.com/tiptop/api/v1;apiv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "google/api/annotations.proto";
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_GUEST       = 1;
+  USER_ROLE_WAITER      = 2;
+  USER_ROLE_MANAGER     = 3;
+  USER_ROLE_ADMIN       = 4;
+}
+
+enum TableStatus {
+  TABLE_STATUS_UNSPECIFIED = 0;
+  TABLE_STATUS_FREE        = 1;
+  TABLE_STATUS_UNPAID      = 2;
+  TABLE_STATUS_PAID        = 3;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_ACTIVE      = 1;
+  ORDER_STATUS_COMPLETED   = 2;
+}
+
+enum OrderItemStatus {
+  ORDER_ITEM_STATUS_UNSPECIFIED = 0;
+  ORDER_ITEM_STATUS_UNPAID      = 1;
+  ORDER_ITEM_STATUS_PAID        = 2;
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING     = 1;
+  TRANSACTION_STATUS_SUCCESS     = 2;
+  TRANSACTION_STATUS_FAILED      = 3;
+}
+
+enum RequestStatus {
+  REQUEST_STATUS_UNSPECIFIED = 0;
+  REQUEST_STATUS_PENDING     = 1;
+  REQUEST_STATUS_ACCEPTED    = 2;
+  REQUEST_STATUS_DONE        = 3;
+}
+
+// ─────────────────────────────────────────────
+// Domain messages
+// ─────────────────────────────────────────────
+
+message Empty {}
+
+message User {
+  string                      id         = 1;
+  string                      first_name = 2;
+  string                      last_name  = 3;
+  string                      phone      = 4; // только цифры: "79123456789"
+  UserRole                    role       = 5;
+  google.protobuf.StringValue venue_id   = 6;
+  google.protobuf.StringValue venue_name = 7;
+  google.protobuf.Timestamp   created_at = 8;
+}
+
+message MenuCategory {
+  string id   = 1;
+  string name = 2;
+}
+
+message Dish {
+  string                      id            = 1;
+  string                      name          = 2;
+  string                      description   = 3;
+  string                      category_id   = 4;
+  string                      category_name = 5;
+  int32                       price         = 6;
+  int32                       weight        = 7;
+  string                      weight_unit   = 8; // "г" | "мл"
+  google.protobuf.Int32Value  calories      = 9;
+  google.protobuf.Int32Value  protein       = 10;
+  google.protobuf.Int32Value  fat           = 11;
+  google.protobuf.Int32Value  carbs         = 12;
+  string                      venue_id      = 13;
+}
+
+message OrderItem {
+  string          id          = 1;
+  string          dish_id     = 2;
+  string          dish_name   = 3;
+  int32           quantity    = 4;
+  int32           price       = 5;
+  OrderItemStatus status      = 6;
+  bool            added_later = 7;
+}
+
+message Order {
+  string                      id           = 1;
+  string                      table_id     = 2;
+  google.protobuf.StringValue waiter_id    = 3;
+  OrderStatus                 status       = 4;
+  repeated OrderItem          items        = 5;
+  int32                       total_amount = 6;
+  int32                       paid_amount  = 7;
+  google.protobuf.StringValue wishes       = 8;
+  google.protobuf.Timestamp   created_at   = 9;
+}
+
+message Table {
+  string                      id                 = 1;
+  int32                       number             = 2;
+  string                      venue_id           = 3;
+  TableStatus                 status             = 4;
+  google.protobuf.StringValue waiter_id          = 5;
+  google.protobuf.StringValue order_id           = 6;
+  int32                       item_count         = 7;
+  int32                       total_amount       = 8;
+  bool                        has_active_request = 9;
+}
+
+message ClosedTableSession {
+  string id           = 1;
+  int32  table_number = 2;
+  int32  item_count   = 3;
+  int32  total_amount = 4;
+  string start_time   = 5; // "12:05"
+  string end_time     = 6; // "13:40"
+}
+
+message Transaction {
+  string                    id          = 1;
+  string                    order_id    = 2;
+  int32                     amount      = 3;
+  int32                     tips_amount = 4;
+  TransactionStatus         status      = 5;
+  repeated string           item_ids    = 6;
+  google.protobuf.Timestamp created_at  = 7;
+}
+
+message Venue {
+  string                      id           = 1;
+  string                      name         = 2;
+  string                      address      = 3;
+  google.protobuf.StringValue description  = 4;
+  google.protobuf.StringValue bank_account = 5;
+  string                      manager_id   = 6;
+}
+
+message WaiterRequest {
+  string                      id           = 1;
+  string                      table_id     = 2;
+  int32                       table_number = 3;
+  google.protobuf.StringValue waiter_id    = 4;
+  RequestStatus               status       = 5;
+  google.protobuf.Timestamp   created_at   = 6;
+}
+
+message WaiterWithStats {
+  User  user                = 1;
+  int32 tables_served_today = 2;
+  int32 tips_today          = 3;
+}
+
+message DailyRevenue {
+  string day    = 1;
+  int32  amount = 2;
+}
+
+message TopDish {
+  string name  = 1;
+  int32  count = 2;
+}
+
+message VenueStats {
+  string name          = 1;
+  int32  revenue       = 2;
+  int32  orders        = 3;
+  int32  average_check = 4;
+}
+
+// ─────────────────────────────────────────────
+// Auth service
+// ─────────────────────────────────────────────
+
+message LoginRequest {
+  string phone    = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  User user = 1;
+}
+
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (google.api.http) = { post: "/api/auth/login" body: "*" };
+  }
+}
+
+// ─────────────────────────────────────────────
+// Guest service
+// ─────────────────────────────────────────────
+
+message GetMenuRequest {
+  string table_id = 1;
+}
+
+message GetMenuResponse {
+  repeated Dish         dishes     = 1;
+  repeated MenuCategory categories = 2;
+}
+
+message GetDishRequest {
+  string id = 1;
+}
+
+message GetTableOrderRequest {
+  string table_id = 1;
+}
+
+message CreateOrderRequest {
+  string                      table_id = 1;
+  repeated CreateOrderItem    items    = 2;
+  google.protobuf.StringValue wishes   = 3;
+
+  message CreateOrderItem {
+    string dish_id  = 1;
+    int32  quantity = 2;
+  }
+}
+
+message CreateTransactionRequest {
+  string          order_id    = 1;
+  repeated string item_ids    = 2;
+  int32           tips_amount = 3;
+}
+
+message GetCallStatusRequest {
+  string table_id = 1;
+}
+
+message GetCallStatusResponse {
+  bool can_call = 1;
+}
+
+message GetTableRequestsRequest {
+  string table_id = 1;
+}
+
+message GetTableRequestsResponse {
+  repeated WaiterRequest data = 1;
+}
+
+message CreateCallRequest {
+  string table_id = 1;
+}
+
+service GuestService {
+  rpc GetMenu(GetMenuRequest) returns (GetMenuResponse) {
+    option (google.api.http) = { get: "/api/tables/{table_id}/menu" };
+  }
+
+  rpc GetDish(GetDishRequest) returns (Dish) {
+    option (google.api.http) = { get: "/api/dishes/{id}" };
+  }
+
+  rpc GetTableOrder(GetTableOrderRequest) returns (Order) {
+    option (google.api.http) = { get: "/api/tables/{table_id}/order" };
+  }
+
+  rpc CreateOrder(CreateOrderRequest) returns (Order) {
+    option (google.api.http) = { post: "/api/orders" body: "*" };
+  }
+
+  rpc CreateTransaction(CreateTransactionRequest) returns (Transaction) {
+    option (google.api.http) = { post: "/api/transactions" body: "*" };
+  }
+
+  rpc GetCallStatus(GetCallStatusRequest) returns (GetCallStatusResponse) {
+    option (google.api.http) = { get: "/api/tables/{table_id}/call-status" };
+  }
+
+  rpc GetTableRequests(GetTableRequestsRequest) returns (GetTableRequestsResponse) {
+    option (google.api.http) = { get: "/api/tables/{table_id}/requests" };
+  }
+
+  rpc CreateCall(CreateCallRequest) returns (WaiterRequest) {
+    option (google.api.http) = { post: "/api/requests" body: "*" };
+  }
+}
+
+// ─────────────────────────────────────────────
+// Waiter service
+// ─────────────────────────────────────────────
+
+message GetWaiterTablesResponse {
+  repeated Table              active  = 1;
+  repeated ClosedTableSession history = 2;
+}
+
+message GetWaiterTableDetailRequest {
+  string table_id = 1;
+}
+
+message GetWaiterTableDetailResponse {
+  Table                  table    = 1;
+  Order                  order    = 2;
+  repeated WaiterRequest requests = 3;
+}
+
+message GetWaiterRequestsResponse {
+  repeated WaiterRequest data = 1;
+}
+
+message AcceptRequestRequest {
+  string id = 1;
+}
+
+message CloseTableRequest {
+  string table_id = 1;
+}
+
+message GetTodayTipsResponse {
+  int32 amount = 1;
+}
+
+message UpdateProfileRequest {
+  string first_name = 1;
+  string last_name  = 2;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password     = 2;
+}
+
+service WaiterService {
+  rpc GetTables(Empty) returns (GetWaiterTablesResponse) {
+    option (google.api.http) = { get: "/api/waiter/tables" };
+  }
+
+  rpc GetTableDetail(GetWaiterTableDetailRequest) returns (GetWaiterTableDetailResponse) {
+    option (google.api.http) = { get: "/api/waiter/tables/{table_id}" };
+  }
+
+  rpc GetRequests(Empty) returns (GetWaiterRequestsResponse) {
+    option (google.api.http) = { get: "/api/waiter/requests" };
+  }
+
+  rpc AcceptRequest(AcceptRequestRequest) returns (WaiterRequest) {
+    option (google.api.http) = { post: "/api/waiter/requests/{id}/accept" body: "*" };
+  }
+
+  rpc CloseTable(CloseTableRequest) returns (Table) {
+    option (google.api.http) = { post: "/api/waiter/tables/{table_id}/close" body: "*" };
+  }
+
+  rpc GetTodayTips(Empty) returns (GetTodayTipsResponse) {
+    option (google.api.http) = { get: "/api/waiter/tips/today" };
+  }
+
+  rpc UpdateProfile(UpdateProfileRequest) returns (User) {
+    option (google.api.http) = { put: "/api/profile" body: "*" };
+  }
+
+  rpc ChangePassword(ChangePasswordRequest) returns (Empty) {
+    option (google.api.http) = { post: "/api/profile/password" body: "*" };
+  }
+}
+
+// ─────────────────────────────────────────────
+// Manager service
+// ─────────────────────────────────────────────
+
+message CreateDishRequest {
+  string                     name        = 1;
+  string                     description = 2;
+  string                     category_id = 3;
+  int32                      price       = 4;
+  int32                      weight      = 5;
+  string                     weight_unit = 6;
+  google.protobuf.Int32Value calories    = 7;
+  google.protobuf.Int32Value protein     = 8;
+  google.protobuf.Int32Value fat         = 9;
+  google.protobuf.Int32Value carbs       = 10;
+}
+
+message DeleteDishRequest {
+  string id = 1;
+}
+
+message UpdateVenueRequest {
+  string                      name         = 1;
+  string                      address      = 2;
+  google.protobuf.StringValue description  = 3;
+  google.protobuf.StringValue bank_account = 4;
+}
+
+message GetManagerWaitersResponse {
+  repeated WaiterWithStats data = 1;
+}
+
+message CreateWaiterAccountRequest {
+  string first_name = 1;
+  string last_name  = 2;
+  string phone      = 3;
+}
+
+message DeleteWaiterRequest {
+  string id = 1;
+}
+
+message GetManagerTablesResponse {
+  repeated Table data = 1;
+}
+
+message DeleteTableRequest {
+  string id = 1;
+}
+
+message GetManagerStatsResponse {
+  int32                 revenue       = 1;
+  int32                 orders_count  = 2;
+  int32                 average_check = 3;
+  int32                 tips_total    = 4;
+  repeated DailyRevenue daily_revenue = 5;
+  repeated TopDish      top_dishes    = 6;
+}
+
+service ManagerService {
+  rpc GetMenu(Empty) returns (GetMenuResponse) {
+    option (google.api.http) = { get: "/api/manager/menu" };
+  }
+
+  rpc CreateDish(CreateDishRequest) returns (Dish) {
+    option (google.api.http) = { post: "/api/manager/dishes" body: "*" };
+  }
+
+  rpc DeleteDish(DeleteDishRequest) returns (Empty) {
+    option (google.api.http) = { delete: "/api/manager/dishes/{id}" };
+  }
+
+  rpc GetVenue(Empty) returns (Venue) {
+    option (google.api.http) = { get: "/api/manager/venue" };
+  }
+
+  rpc UpdateVenue(UpdateVenueRequest) returns (Venue) {
+    option (google.api.http) = { put: "/api/manager/venue" body: "*" };
+  }
+
+  rpc GetWaiters(Empty) returns (GetManagerWaitersResponse) {
+    option (google.api.http) = { get: "/api/manager/waiters" };
+  }
+
+  rpc CreateWaiter(CreateWaiterAccountRequest) returns (User) {
+    option (google.api.http) = { post: "/api/manager/waiters" body: "*" };
+  }
+
+  rpc DeleteWaiter(DeleteWaiterRequest) returns (Empty) {
+    option (google.api.http) = { delete: "/api/manager/waiters/{id}" };
+  }
+
+  rpc GetTables(Empty) returns (GetManagerTablesResponse) {
+    option (google.api.http) = { get: "/api/manager/tables" };
+  }
+
+  rpc CreateTable(Empty) returns (Table) {
+    option (google.api.http) = { post: "/api/manager/tables" body: "*" };
+  }
+
+  rpc DeleteTable(DeleteTableRequest) returns (Empty) {
+    option (google.api.http) = { delete: "/api/manager/tables/{id}" };
+  }
+
+  rpc GetStats(Empty) returns (GetManagerStatsResponse) {
+    option (google.api.http) = { get: "/api/manager/stats" };
+  }
+}
+
+// ─────────────────────────────────────────────
+// Admin service
+// ─────────────────────────────────────────────
+
+message GetManagersResponse {
+  repeated User data = 1;
+}
+
+message CreateManagerRequest {
+  string first_name = 1;
+  string last_name  = 2;
+  string phone      = 3;
+}
+
+message DeleteManagerRequest {
+  string id = 1;
+}
+
+message GetAdminStatsResponse {
+  int32               venues_count  = 1;
+  int32               total_revenue = 2;
+  int32               total_orders  = 3;
+  int32               average_check = 4;
+  repeated VenueStats venues        = 5;
+}
+
+service AdminService {
+  rpc GetManagers(Empty) returns (GetManagersResponse) {
+    option (google.api.http) = { get: "/api/admin/managers" };
+  }
+
+  rpc CreateManager(CreateManagerRequest) returns (User) {
+    option (google.api.http) = { post: "/api/admin/managers" body: "*" };
+  }
+
+  rpc DeleteManager(DeleteManagerRequest) returns (Empty) {
+    option (google.api.http) = { delete: "/api/admin/managers/{id}" };
+  }
+
+  rpc GetStats(Empty) returns (GetAdminStatsResponse) {
+    option (google.api.http) = { get: "/api/admin/stats" };
+  }
+}
