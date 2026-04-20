@@ -32,7 +32,7 @@ func (r *CredsRepository) SaveCredentials(ctx context.Context, userID uuid.UUID,
 	return nil
 }
 
-func (r *CredsRepository) GetPasswordByID(ctx context.Context, userID uuid.UUID) (string, error) {
+func (r *CredsRepository) GetPasswordByID(ctx context.Context, userID string) (string, error) {
 	const query = `
 		SELECT password
 		FROM credentials
@@ -81,7 +81,7 @@ func (r *CredsRepository) GetAuthInfoByLogin(ctx context.Context, login string) 
 	}, nil
 }
 
-func (r *CredsRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, newPassword string) error {
+func (r *CredsRepository) UpdatePassword(ctx context.Context, userID string, newPassword string) error {
 	const query = `
 		UPDATE credentials
 		SET password = $1

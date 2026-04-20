@@ -15,17 +15,14 @@ import (
 type AuthHandler struct {
 	usecase            usecase.AuthUsecase
 	cookieTokensSetter *cookie.CookieTokensSetter
-	authMiddleware     gin.HandlerFunc
 }
 
 func NewAuthHandler(usecase usecase.AuthUsecase,
-	cookieTokensSetter *cookie.CookieTokensSetter,
-	authMiddleware gin.HandlerFunc) *AuthHandler {
+	cookieTokensSetter *cookie.CookieTokensSetter) *AuthHandler {
 
 	return &AuthHandler{
 		usecase:            usecase,
 		cookieTokensSetter: cookieTokensSetter,
-		authMiddleware:     authMiddleware,
 	}
 }
 
