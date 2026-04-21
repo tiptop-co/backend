@@ -16,7 +16,7 @@ func TestCreateAccessToken(t *testing.T) {
 	cfg := config.AccessTokenConfig{
 		TTL:       time.Minute * 15,
 		Jitter:    time.Second * 5,
-		SecretKey: []byte("supersecretkey"),
+		SecretKey: "supersecretkey",
 	}
 	tokenService := New(cfg, config.RefreshTokenConfig{})
 
@@ -41,7 +41,7 @@ func TestTokenExpired(t *testing.T) {
 	cfg := config.AccessTokenConfig{
 		TTL:       time.Second,
 		Jitter:    time.Second * 2,
-		SecretKey: []byte("supersecretkey"),
+		SecretKey: "supersecretkey",
 	}
 	tokenService := New(cfg, config.RefreshTokenConfig{})
 
@@ -65,7 +65,7 @@ func TestTokenParsingError(t *testing.T) {
 	cfg := config.AccessTokenConfig{
 		TTL:       time.Minute * 15,
 		Jitter:    time.Second * 5,
-		SecretKey: []byte("supersecretkey"),
+		SecretKey: "supersecretkey",
 	}
 	tokenService := New(cfg, config.RefreshTokenConfig{})
 
@@ -78,7 +78,7 @@ func TestTokenFromDifferentSource(t *testing.T) {
 	cfg := config.AccessTokenConfig{
 		TTL:       time.Minute * 15,
 		Jitter:    time.Second * 5,
-		SecretKey: []byte("supersecretkey"),
+		SecretKey: "supersecretkey",
 	}
 	tokenService := New(cfg, config.RefreshTokenConfig{})
 

@@ -59,7 +59,7 @@ func (s *JWTTokenService) GenerateAccessToken(claims *auth.Claims) (string, erro
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims)
 
-	return token.SignedString(s.accessCfg.SecretKey)
+	return token.SignedString([]byte(s.accessCfg.SecretKey))
 }
 
 func (s *JWTTokenService) ParseAccessToken(tokenStr string) (*auth.Claims, error) {
@@ -69,7 +69,7 @@ func (s *JWTTokenService) ParseAccessToken(tokenStr string) (*auth.Claims, error
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidSigningMethod
 		}
-		return s.accessCfg.SecretKey, nil
+		return []byte(s.accessCfg.SecretKey), nil
 	})
 
 	switch {

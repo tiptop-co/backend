@@ -4,8 +4,8 @@ import "time"
 
 type AccessTokenConfig struct {
 	TTL       time.Duration `yaml:"access_token_ttl" env:"ACCESS_TOKEN_TTL"`
-	Jitter    time.Duration `yaml:"access_tolen_jitter" env:"ACCESS_TOKEN_JITTER"`
-	SecretKey []byte        `yaml:"secret_key" env:"SECRET_KEY"`
+	Jitter    time.Duration `yaml:"access_token_jitter" env:"ACCESS_TOKEN_JITTER"`
+	SecretKey string        `yaml:"secret_key" env:"SECRET_KEY"`
 }
 
 type RefreshTokenConfig struct {

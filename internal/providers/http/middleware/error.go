@@ -28,7 +28,6 @@ func ErrorHandler(logger *slog.Logger) gin.HandlerFunc {
 		logger.Error("request failed",
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
-			"status", c.Request.Response.Status,
 			"client_ip", c.ClientIP(),
 			"error", err,
 		)
