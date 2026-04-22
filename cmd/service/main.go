@@ -14,6 +14,7 @@ import (
 
 	"github.com/tiptop-co/backend/internal/config"
 	"github.com/tiptop-co/backend/internal/infra"
+	"github.com/tiptop-co/backend/internal/model/authz"
 	creds_postgres "github.com/tiptop-co/backend/internal/repository/auth/credentials/postgres"
 	refresh_redis "github.com/tiptop-co/backend/internal/repository/auth/refresh-token/redis"
 	"github.com/tiptop-co/backend/internal/usecase/auth"
@@ -78,6 +79,7 @@ func main() {
 		gin.Recovery(),
 		gin.Logger(),
 		// middleware.CORSMiddleware(""),
+		middleware.ParseClaims(authUsecase),
 		middleware.ErrorHandler(logger),
 	)
 
@@ -93,8 +95,13 @@ func main() {
 		auth.POST("/login", authHandler.Login)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/logout", authHandler.Logout)
-		auth.POST("/password", middleware.ClaimsRequired(authUsecase),
-			authHandler.UpdatePassword)
+	}
+	users := apiV1.Group("/users")
+	{
+		users.PATCH("/me/password",
+			middleware.RequirePermission(authz.PermUpdatePassword),
+			authHandler.UpdatePassword,
+		)
 	}
 
 	// SERVER
