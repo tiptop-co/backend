@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/tiptop-co/backend/internal/config"
 	"github.com/tiptop-co/backend/internal/model/auth"
+	"github.com/tiptop-co/backend/internal/model/authz"
 )
 
 var (
@@ -21,9 +22,9 @@ var (
 )
 
 type jwtClaims struct {
-	UserID   string        `json:"user_id"`
-	UserRole auth.UserRole `json:"user_role"`
-	VenueID  string        `json:"venue_id"`
+	UserID   string         `json:"user_id"`
+	UserRole authz.UserRole `json:"user_role"`
+	VenueID  string         `json:"venue_id"`
 	jwt.RegisteredClaims
 }
 

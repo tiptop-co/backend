@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tiptop-co/backend/internal/config"
 	"github.com/tiptop-co/backend/internal/model/auth"
+	"github.com/tiptop-co/backend/internal/model/authz"
 )
 
 func TestCreateAccessToken(t *testing.T) {
@@ -22,7 +23,7 @@ func TestCreateAccessToken(t *testing.T) {
 
 	claims := &auth.Claims{
 		UserID:   uuid.New().String(),
-		UserRole: auth.UserRole(1),
+		UserRole: authz.UserRole(1),
 		VenueID:  uuid.New().String(),
 	}
 
@@ -47,7 +48,7 @@ func TestTokenExpired(t *testing.T) {
 
 	claims := &auth.Claims{
 		UserID:   uuid.New().String(),
-		UserRole: auth.UserRole(1),
+		UserRole: authz.UserRole(1),
 		VenueID:  uuid.New().String(),
 	}
 
@@ -84,7 +85,7 @@ func TestTokenFromDifferentSource(t *testing.T) {
 
 	claims := &auth.Claims{
 		UserID:   uuid.New().String(),
-		UserRole: auth.UserRole(1),
+		UserRole: authz.UserRole(1),
 		VenueID:  uuid.New().String(),
 	}
 
