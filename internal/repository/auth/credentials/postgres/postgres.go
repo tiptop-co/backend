@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tiptop-co/backend/internal/model/auth"
 )
@@ -17,7 +16,7 @@ func NewRepository(pool *pgxpool.Pool) *CredsRepository {
 	return &CredsRepository{pool: pool}
 }
 
-func (r *CredsRepository) SaveCredentials(ctx context.Context, userID uuid.UUID, credentials *auth.UserCredentials) error {
+func (r *CredsRepository) SaveCredentials(ctx context.Context, userID string, credentials *auth.UserCredentials) error {
 	const query = `
 		INSERT INTO credentials (user_id, login, password)
 		VALUES ($1, $2, $3)
