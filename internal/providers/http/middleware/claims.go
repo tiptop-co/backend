@@ -14,17 +14,12 @@ type Parser interface {
 
 func ParseClaims(parser Parser) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := c.Cookie(cookie.AccessCookieName)
-		if err != nil {
-			c.Next()
+		if token, err := c.Cookie(cookie.AccessCookieName); err == nil {
+			if claims, err := parser.GetClaims(c, token); err == nil {
+				c.Set("claims", claims)
+			}
 		}
 
-		claims, err := parser.GetClaims(c, token)
-		if err != nil {
-			c.Next()
-		}
-
-		c.Set("claims", claims)
 		c.Next()
 	}
 }
