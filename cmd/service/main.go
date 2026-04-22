@@ -2,142 +2,132 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	apiMiddleware "github.com/go-openapi/runtime/middleware"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/cors"
+	"github.com/gin-gonic/gin"
 
 	"github.com/tiptop-co/backend/internal/config"
-	"github.com/tiptop-co/backend/internal/configure"
-	mealsHandler "github.com/tiptop-co/backend/internal/handler/v1_meals"
-	"github.com/tiptop-co/backend/internal/model"
-	authMiddleware "github.com/tiptop-co/backend/internal/pkg/middleware/auth"
-	paymentRepo "github.com/tiptop-co/backend/internal/repository/payment"
-	payOrderUc "github.com/tiptop-co/backend/internal/usecase/order/pay"
+	"github.com/tiptop-co/backend/internal/infra"
+	"github.com/tiptop-co/backend/internal/model/authz"
+	creds_postgres "github.com/tiptop-co/backend/internal/repository/auth/credentials/postgres"
+	refresh_redis "github.com/tiptop-co/backend/internal/repository/auth/refresh-token/redis"
+	"github.com/tiptop-co/backend/internal/usecase/auth"
+
+	authHandler "github.com/tiptop-co/backend/internal/handler/auth"
+
+	"github.com/tiptop-co/backend/internal/providers/http/cookie"
+	"github.com/tiptop-co/backend/internal/providers/http/middleware"
+	bcrypt_hasher "github.com/tiptop-co/backend/internal/providers/password-hasher/bcrypt-hasher"
+	jwttokens "github.com/tiptop-co/backend/internal/providers/tokens/jwt"
 )
 
-const timeout = 3 * time.Second
+const shutdownTimeout = 5 * time.Second
 
 func main() {
 	cfg := config.MustLoad()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	db := configure.MustInitPostgres(ctx, cfg.Postgres)
+	pgxpool := infra.MustInitPostgres(ctx, cfg.Postgres)
+	defer pgxpool.Close()
 
-	redis := configure.MustInitRedis(cfg.Redis)
-
-	reg := prometheus.NewRegistry()
-
-	// <! Repositories
-	paymentRepository := paymentRepo.New(db)
-	// !>
-
-	// <! Usecases
-	payOrderUsecase := payOrderUc.New(paymentRepository)
-	// !>
-
-	// <! Router
-	r := mux.NewRouter()
-	// !!>
-
-	specData, err := os.ReadFile("api/schema.yml")
+	redisClient, err := infra.NewRedisClient(cfg.Redis)
 	if err != nil {
-		panic(err)
+		slog.Error("failed to connect to redis", "error", err)
+		return
 	}
-
-	r.Handle("/api/schema.yml", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/yaml")
-		_, _ = w.Write(specData)
-	}))
-
-	opts := apiMiddleware.SwaggerUIOpts{
-		Path:    "/docs",
-		SpecURL: "/api/schema.yml",
-		Title:   "API Documentation",
-	}
-
-	r.Handle("/docs/", apiMiddleware.SwaggerUI(opts, nil))
-
-	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL)
-		http.Error(w, `Not found!`, 404)
-	})
-
-	r.Handle("/public/metrics", promhttp.HandlerFor(
-		reg,
-		promhttp.HandlerOpts{
-			Registry: reg,
-		},
-	))
-
-	r.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	}))
-	// !>
-
-	// <! Permissions
-	permsMiddleware := permissionMiddleware.New()
-
-	for path, perms := range model.Resources {
-		permsMiddleware.Register(path, perms)
-	}
-	// !>
-
-	// <! Middleware
-	corsMiddleware := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		ExposedHeaders:   []string{"Content-Length"},
-		AllowCredentials: true,
-	})
-	r.Use(authMiddleware.New())
-	// r.Use(permsMiddleware.New())
-	// !>
-
-	// <! Handlers
-	authHandler := mealsHandler.New()
-	// !>
-
-	// <! Server
-	srv := server.NewServer(corsMiddleware.Handler(srvRouter), cfg.Server)
-	// !>
-
-	// <! Run
-	go func() {
-		log.Info(fmt.Sprintf("server is running on port %s...", cfg.Server.Port))
-		if err := srv.Run(); err != nil {
-			log.Error(">>> ERROR: HTTP server ListenAndServe error: " + err.Error())
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			logger.Error("failed to close redis connection", "error", err)
 		}
 	}()
-	// !>
 
-	// <! Graceful shutdown
-	exit := make(chan os.Signal, 1)
-	signal.Notify(exit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	// REPOSITORIES
+	credsRepo := creds_postgres.NewRepository(pgxpool)
+	refreshTokenRepo := refresh_redis.NewRefreshTokenRepository(redisClient, &cfg.RefreshToken)
 
-	<-exit
+	// PROVIDERS
+	hasher := bcrypt_hasher.New(cfg.PasswordHasher.Cost)
+	tokenService := jwttokens.New(cfg.AccessToken, cfg.RefreshToken)
+	cookieSetter := cookie.NewCookieTokensSetter(&cfg.AuthCookie)
 
-	ctx, shutdown := context.WithTimeout(context.Background(), timeout)
-	defer shutdown()
+	// USECASES
+	authUsecase := auth.NewAuthService(
+		credsRepo,
+		refreshTokenRepo,
+		hasher,
+		tokenService,
+	)
 
-	log.Info("shutting down...")
-	if err := srv.Stop(ctx); err != nil {
-		log.Error(fmt.Sprintf("HTTP server shutdown error: %v", err))
+	// HTTP HANDLERS
+	authHandler := authHandler.NewAuthHandler(authUsecase, cookieSetter)
+
+	// ROUTER
+	r := gin.New()
+
+	// middleware
+	r.Use(
+		gin.Recovery(),
+		gin.Logger(),
+		// middleware.CORSMiddleware(""),
+		middleware.ParseClaims(authUsecase),
+		middleware.ErrorHandler(logger),
+	)
+
+	// health
+	r.GET("/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	// ROUTES
+	apiV1 := r.Group("/api/v1")
+	auth := apiV1.Group("/auth")
+	{
+		auth.POST("/login", authHandler.Login)
+		auth.POST("/refresh", authHandler.Refresh)
+		auth.POST("/logout", authHandler.Logout)
 	}
-	// !>
+	users := apiV1.Group("/users")
+	{
+		users.PATCH("/me/password",
+			middleware.RequirePermission(authz.PermUpdatePassword),
+			authHandler.UpdatePassword,
+		)
+	}
+
+	// SERVER
+	srv := &http.Server{
+		Addr:    net.JoinHostPort(cfg.HTTP.Host, cfg.HTTP.Port),
+		Handler: r,
+	}
+
+	go func() {
+		logger.Info("server started", "port", cfg.HTTP.Port)
+
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", "error", err)
+		}
+	}()
+
+	// GRACEFUL SHUTDOWN
+	<-ctx.Done()
+	logger.Info("shutting down...")
+
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		logger.Error("shutdown failed", "error", err)
+	}
+
+	logger.Info("server stopped")
 }
