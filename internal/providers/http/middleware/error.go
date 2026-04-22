@@ -66,6 +66,9 @@ func mapError(err error) (int, string) {
 	case errors.Is(err, model.ErrUnauthorized):
 		return http.StatusBadRequest, "unauthorized"
 
+	case errors.Is(err, model.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
+
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}
