@@ -130,6 +130,7 @@ func (s *TableService) UpdateStatus(ctx context.Context, tableID string, status 
 
 		t.SessionToken = newSessionToken
 		t.WaiterID = nil
+		t.OrderID = nil
 	}
 
 	if err = s.repo.Update(ctx, t); err != nil {
@@ -149,7 +150,7 @@ func (s *TableService) Delete(ctx context.Context, tableID string) (err error) {
 		return fmt.Errorf("failed to get table: %w", err)
 	}
 
-	if t.Status == table.StatusPaid || t.Status == table.StatusUnpaid {
+	if t.Status == table.StatusPaid || t.Status == table.StatusUnpaid || t.OrderID != nil {
 		return ErrTableIsOccupied
 	}
 
