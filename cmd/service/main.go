@@ -17,13 +17,17 @@ import (
 	"github.com/tiptop-co/backend/internal/model/authz"
 	creds_postgres "github.com/tiptop-co/backend/internal/repository/auth/credentials/postgres"
 	refresh_redis "github.com/tiptop-co/backend/internal/repository/auth/refresh-token/redis"
+	table_postgres "github.com/tiptop-co/backend/internal/repository/table/postgres"
 	"github.com/tiptop-co/backend/internal/usecase/auth"
+	"github.com/tiptop-co/backend/internal/usecase/table"
 
-	authHandler "github.com/tiptop-co/backend/internal/handler/auth"
+	auth_handler "github.com/tiptop-co/backend/internal/handler/auth"
+	table_handler "github.com/tiptop-co/backend/internal/handler/table"
 
 	"github.com/tiptop-co/backend/internal/providers/http/cookie"
 	"github.com/tiptop-co/backend/internal/providers/http/middleware"
 	bcrypt_hasher "github.com/tiptop-co/backend/internal/providers/password-hasher/bcrypt-hasher"
+	cryptogen "github.com/tiptop-co/backend/internal/providers/tokens/crypto"
 	jwttokens "github.com/tiptop-co/backend/internal/providers/tokens/jwt"
 )
 
@@ -54,11 +58,13 @@ func main() {
 	// REPOSITORIES
 	credsRepo := creds_postgres.NewRepository(pgxpool)
 	refreshTokenRepo := refresh_redis.NewRefreshTokenRepository(redisClient, &cfg.RefreshToken)
+	tableRepo := table_postgres.NewTableRepository(pgxpool)
 
 	// PROVIDERS
 	hasher := bcrypt_hasher.New(cfg.PasswordHasher.Cost)
 	tokenService := jwttokens.New(cfg.AccessToken, cfg.RefreshToken)
 	cookieSetter := cookie.NewCookieTokensSetter(&cfg.AuthCookie)
+	tokenGenerator := cryptogen.NewGenerator()
 
 	// USECASES
 	authUsecase := auth.NewAuthService(
@@ -67,9 +73,11 @@ func main() {
 		hasher,
 		tokenService,
 	)
+	tableUsecase := table.NewTableService(&cfg.TableService, tableRepo, tokenGenerator)
 
 	// HTTP HANDLERS
-	authHandler := authHandler.NewAuthHandler(authUsecase, cookieSetter)
+	authHandler := auth_handler.NewAuthHandler(authUsecase, cookieSetter)
+	tableHandler := table_handler.NewTableHandler(cfg.TableSessionCookie, tableUsecase)
 
 	// ROUTER
 	r := gin.New()
@@ -80,6 +88,7 @@ func main() {
 		gin.Logger(),
 		// middleware.CORSMiddleware(""),
 		middleware.ParseClaims(authUsecase),
+		middleware.ParseTableSession(tableUsecase),
 		middleware.ErrorHandler(logger),
 	)
 
@@ -102,6 +111,22 @@ func main() {
 			middleware.RequirePermission(authz.PermUpdatePassword),
 			authHandler.UpdatePassword,
 		)
+	}
+	tables := apiV1.Group("tables")
+	{
+		tables.POST("/bootstrap", tableHandler.GetByQR)
+	}
+	waiter := apiV1.Group("/waiter")
+	{
+		waiter.GET("/tables", middleware.RequirePermission(authz.PermGetWaiterTables), tableHandler.GetWaiterTables)
+		waiter.GET("/tables/:table_id", middleware.RequirePermission(authz.PermGetTableByID), tableHandler.GetByID)
+		waiter.POST("/tables/:table_id/close", middleware.RequirePermission(authz.PermFreeTable), tableHandler.FreeTable)
+	}
+	manager := apiV1.Group("/manager")
+	{
+		manager.GET("/tables", middleware.RequirePermission(authz.PermGetVenueTables), tableHandler.GetVenueTables)
+		manager.POST("/tables", middleware.RequirePermission(authz.PermCreateTable), tableHandler.CreateTable)
+		manager.DELETE("/tables/:table_id", middleware.RequirePermission(authz.PermDeleteTable), tableHandler.DeleteTable)
 	}
 
 	// SERVER
