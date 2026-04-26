@@ -6,7 +6,20 @@ package authz
 type Permission string
 
 const (
+	// User
 	PermUpdatePassword Permission = "password:update"
+
+	// Table
+	PermCreateTable  Permission = "table:create"
+	PermDeleteTable  Permission = "table:delete"
+	PermFreeTable    Permission = "table:free"
+	PermGetTableByID Permission = "table:get"
+
+	// Waiter
+	PermGetWaiterTables Permission = "waiter:get_tables"
+
+	// Venue
+	PermGetVenueTables Permission = "venue:get_tables"
 )
 
 type permissionSet map[Permission]struct{}

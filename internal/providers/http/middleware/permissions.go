@@ -19,6 +19,7 @@ func RequirePermission(p authz.Permission) gin.HandlerFunc {
 
 		if !authz.HasPermission(claims.UserRole, p) {
 			_ = c.AbortWithError(http.StatusForbidden, model.ErrForbidden)
+			return
 		}
 
 		c.Next()
