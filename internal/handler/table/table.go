@@ -72,6 +72,7 @@ func (h *TableHandler) GetByQR(c *gin.Context) {
 	}
 
 	t := tables[0]
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(
 		"table_session",
 		t.SessionToken,
