@@ -16,6 +16,10 @@ type Config struct {
 	RefreshToken   RefreshTokenConfig   `yaml:"refresh_token"`
 	PasswordHasher PasswordHasherConfig `yaml:"password_hasher"`
 	AuthCookie     AuthCookieConfig     `yaml:"auth_cookie"`
+
+	// TABLE
+	TableService       TableServiceConfig       `yaml:"table_service"`
+	TableSessionCookie TableSessionCookieConfig `yaml:"table_session_cookie"`
 }
 
 type HTTPConfig struct {
