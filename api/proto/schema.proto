@@ -208,6 +208,10 @@ service AuthService {
 // Guest service
 // ─────────────────────────────────────────────
 
+message TableBootstrapRequest {
+  string qr_token = 1;
+}
+
 message GetMenuRequest {
   string table_id = 1;
 }
@@ -263,6 +267,10 @@ message CreateCallRequest {
 }
 
 service GuestService {
+  rpc TableBootstap(TableBootstrapRequest) returns (Table) {
+    option (google.api.http) = { post: "/api/tables/bootstrap" };
+  }
+
   rpc GetMenu(GetMenuRequest) returns (GetMenuResponse) {
     option (google.api.http) = { get: "/api/tables/{table_id}/menu" };
   }
@@ -301,8 +309,7 @@ service GuestService {
 // ─────────────────────────────────────────────
 
 message GetWaiterTablesResponse {
-  repeated Table              active  = 1;
-  repeated ClosedTableSession history = 2;
+  repeated Table tables = 1;
 }
 
 message GetWaiterTableDetailRequest {
@@ -379,6 +386,10 @@ service WaiterService {
 // Manager service
 // ─────────────────────────────────────────────
 
+message CreateTableRequest {
+  int32 number = 1;
+}
+
 message CreateDishRequest {
   string                     name        = 1;
   string                     description = 2;
@@ -418,7 +429,7 @@ message DeleteWaiterRequest {
 }
 
 message GetManagerTablesResponse {
-  repeated Table data = 1;
+  repeated Table tables = 1;
 }
 
 message DeleteTableRequest {
@@ -471,12 +482,12 @@ service ManagerService {
     option (google.api.http) = { get: "/api/manager/tables" };
   }
 
-  rpc CreateTable(Empty) returns (Table) {
+  rpc CreateTable(CreateTableRequest) returns (Table) {
     option (google.api.http) = { post: "/api/manager/tables" body: "*" };
   }
 
   rpc DeleteTable(DeleteTableRequest) returns (Empty) {
-    option (google.api.http) = { delete: "/api/manager/tables/{id}" };
+    option (google.api.http) = { delete: "/api/manager/tables/{table_id}" };
   }
 
   rpc GetStats(Empty) returns (GetManagerStatsResponse) {
