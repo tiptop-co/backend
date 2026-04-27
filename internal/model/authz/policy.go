@@ -6,9 +6,16 @@ var rolePermissions = map[UserRole]permissionSet{
 	},
 	RoleManager: {
 		PermUpdatePassword: {},
+		PermCreateTable:    {},
+		PermDeleteTable:    {},
+		PermGetVenueTables: {},
+		PermGetTableByID:   {},
 	},
 	RoleWaiter: {
-		PermUpdatePassword: {},
+		PermUpdatePassword:  {},
+		PermGetWaiterTables: {},
+		PermFreeTable:       {},
+		PermGetTableByID:    {},
 	},
 }
 
