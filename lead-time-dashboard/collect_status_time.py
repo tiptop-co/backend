@@ -23,19 +23,19 @@ import urllib.error
 
 
 STATUSES = [
-    "To Do",
-    "In Progress",
-    "In Review",
-    "In QA",
-    "Done",
+    "TODO",
+    "IN PROGRESS",
+    "IN REVIEW",
+    "IN QA",
+    "DONE",
 ]
 
 STATUS_COLORS = {
-    "To Do":       "#8b949e",
-    "In Progress": "#3fb950",
-    "In Review":   "#d29922",
-    "In QA":       "#58a6ff",
-    "Done":        "#238636",
+    "TODO":        "#8b949e",
+    "IN PROGRESS": "#3fb950",
+    "IN REVIEW":   "#d29922",
+    "IN QA":       "#58a6ff",
+    "DONE":        "#238636",
 }
 
 
@@ -160,16 +160,35 @@ def parse_dt(s: Optional[str]) -> Optional[datetime]:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
+def normalize_status(name: Optional[str]) -> Optional[str]:
+    """Нормализует название статуса для сравнения."""
+    if not name:
+        return None
+    # API возвращает DONE, IN PROGRESS, IN REVIEW, IN QA, TO DO
+    # Нормализуем: убираем лишние пробелы, приводим к верхнему регистру
+    normalized = name.strip().upper()
+    # Маппинг на случай вариаций
+    mapping = {
+        "TO DO": "TODO",
+        "TO_DO": "TODO",
+        "IN_PROGRESS": "IN PROGRESS",
+        "IN_REVIEW": "IN REVIEW",
+        "IN_QA": "IN QA",
+    }
+    return mapping.get(normalized, normalized)
+
+
 def get_current_status(item: dict) -> Optional[str]:
     """Получает текущий статус задачи из fieldValues."""
     for fv in item.get("fieldValues", {}).get("nodes", []):
         field_name = fv.get("field", {}).get("name", "").lower()
         if field_name in ("status", "статус", "state"):
-            return fv.get("name")
-    # Если поле не называется "status", берём первый single select
+            return normalize_status(fv.get("name"))
+    # Если поле не называется "status", ищем любое совпадение со списком статусов
     for fv in item.get("fieldValues", {}).get("nodes", []):
-        if fv.get("name") and fv.get("name") in STATUSES:
-            return fv.get("name")
+        normalized = normalize_status(fv.get("name"))
+        if normalized and normalized in STATUSES:
+            return normalized
     return None
 
 
@@ -237,11 +256,11 @@ def compute_status_times(item: dict) -> dict[str, float]:
     # Используем эвристику: ранние статусы (разработка) обычно занимают больше времени.
     # Веса основаны на типичном распределении в командах (можно настроить).
     WEIGHTS = {
-        "To Do":       1.0,
-        "In Progress": 3.0,
-        "In Review":   1.0,
-        "In QA":       1.5,
-        "Done":        0.3,
+        "TODO":        1.0,
+        "IN PROGRESS": 3.0,
+        "IN REVIEW":   1.0,
+        "IN QA":       1.5,
+        "DONE":        0.3,
     }
 
     weights = [WEIGHTS.get(s, 1.0) for s in passed_statuses]
