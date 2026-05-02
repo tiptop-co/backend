@@ -17,3 +17,6 @@ migrate-up:
 migrate-down:
 	goose -dir db/migrations postgres "host=${POSTGRES_HOST} port=${POSTGRES_PORT} user=${POSTGRES_USER} \
 		password=${POSTGRES_PASSWORD} dbname=${POSTGRES_DATABASE} sslmode=${POSTGRES_SSLMODE}" down
+
+fill-db:
+	go run ./cmd/seed

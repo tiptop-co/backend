@@ -2,20 +2,48 @@ package authz
 
 var rolePermissions = map[UserRole]permissionSet{
 	RoleAdmin: {
-		PermUpdatePassword: {},
+		PermUpdatePassword:  {},
+		PermProfileUpdate:   {},
+		PermManagerList:     {},
+		PermManagerCreate:   {},
+		PermManagerDelete:   {},
+		PermStatsReadGlobal: {},
 	},
 	RoleManager: {
 		PermUpdatePassword: {},
+		PermProfileUpdate:  {},
+
 		PermCreateTable:    {},
 		PermDeleteTable:    {},
 		PermGetVenueTables: {},
 		PermGetTableByID:   {},
+
+		PermVenueRead:   {},
+		PermVenueUpdate: {},
+
+		PermMenuRead:   {},
+		PermDishCreate: {},
+		PermDishDelete: {},
+
+		PermWaiterList:   {},
+		PermWaiterCreate: {},
+		PermWaiterDelete: {},
+
+		PermStatsReadVenue: {},
 	},
 	RoleWaiter: {
-		PermUpdatePassword:  {},
+		PermUpdatePassword: {},
+		PermProfileUpdate:  {},
+
 		PermGetWaiterTables: {},
 		PermFreeTable:       {},
 		PermGetTableByID:    {},
+		PermCloseTable:      {},
+
+		PermRequestListWaiter: {},
+		PermRequestAccept:     {},
+
+		PermTipsRead: {},
 	},
 }
 

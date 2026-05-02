@@ -200,7 +200,7 @@ message LoginResponse {
 
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse) {
-    option (google.api.http) = { post: "/api/auth/login" body: "*" };
+    option (google.api.http) = { post: "/api/v1/auth/login" body: "*" };
   }
 }
 
@@ -268,39 +268,39 @@ message CreateCallRequest {
 
 service GuestService {
   rpc TableBootstap(TableBootstrapRequest) returns (Table) {
-    option (google.api.http) = { post: "/api/tables/bootstrap" };
+    option (google.api.http) = { post: "/api/v1/tables/bootstrap" };
   }
 
   rpc GetMenu(GetMenuRequest) returns (GetMenuResponse) {
-    option (google.api.http) = { get: "/api/tables/{table_id}/menu" };
+    option (google.api.http) = { get: "/api/v1/tables/{table_id}/menu" };
   }
 
   rpc GetDish(GetDishRequest) returns (Dish) {
-    option (google.api.http) = { get: "/api/dishes/{id}" };
+    option (google.api.http) = { get: "/api/v1/dishes/{id}" };
   }
 
   rpc GetTableOrder(GetTableOrderRequest) returns (Order) {
-    option (google.api.http) = { get: "/api/tables/{table_id}/order" };
+    option (google.api.http) = { get: "/api/v1/tables/{table_id}/order" };
   }
 
   rpc CreateOrder(CreateOrderRequest) returns (Order) {
-    option (google.api.http) = { post: "/api/orders" body: "*" };
+    option (google.api.http) = { post: "/api/v1/orders" body: "*" };
   }
 
   rpc CreateTransaction(CreateTransactionRequest) returns (Transaction) {
-    option (google.api.http) = { post: "/api/transactions" body: "*" };
+    option (google.api.http) = { post: "/api/v1/transactions" body: "*" };
   }
 
   rpc GetCallStatus(GetCallStatusRequest) returns (GetCallStatusResponse) {
-    option (google.api.http) = { get: "/api/tables/{table_id}/call-status" };
+    option (google.api.http) = { get: "/api/v1/tables/{table_id}/call-status" };
   }
 
   rpc GetTableRequests(GetTableRequestsRequest) returns (GetTableRequestsResponse) {
-    option (google.api.http) = { get: "/api/tables/{table_id}/requests" };
+    option (google.api.http) = { get: "/api/v1/tables/{table_id}/requests" };
   }
 
   rpc CreateCall(CreateCallRequest) returns (WaiterRequest) {
-    option (google.api.http) = { post: "/api/requests" body: "*" };
+    option (google.api.http) = { post: "/api/v1/requests" body: "*" };
   }
 }
 
@@ -350,35 +350,35 @@ message ChangePasswordRequest {
 
 service WaiterService {
   rpc GetTables(Empty) returns (GetWaiterTablesResponse) {
-    option (google.api.http) = { get: "/api/waiter/tables" };
+    option (google.api.http) = { get: "/api/v1/waiter/tables" };
   }
 
   rpc GetTableDetail(GetWaiterTableDetailRequest) returns (GetWaiterTableDetailResponse) {
-    option (google.api.http) = { get: "/api/waiter/tables/{table_id}" };
+    option (google.api.http) = { get: "/api/v1/waiter/tables/{table_id}" };
   }
 
   rpc GetRequests(Empty) returns (GetWaiterRequestsResponse) {
-    option (google.api.http) = { get: "/api/waiter/requests" };
+    option (google.api.http) = { get: "/api/v1/waiter/requests" };
   }
 
   rpc AcceptRequest(AcceptRequestRequest) returns (WaiterRequest) {
-    option (google.api.http) = { post: "/api/waiter/requests/{id}/accept" body: "*" };
+    option (google.api.http) = { post: "/api/v1/waiter/requests/{id}/accept" body: "*" };
   }
 
   rpc CloseTable(CloseTableRequest) returns (Table) {
-    option (google.api.http) = { post: "/api/waiter/tables/{table_id}/close" body: "*" };
+    option (google.api.http) = { post: "/api/v1/waiter/tables/{table_id}/close" body: "*" };
   }
 
   rpc GetTodayTips(Empty) returns (GetTodayTipsResponse) {
-    option (google.api.http) = { get: "/api/waiter/tips/today" };
+    option (google.api.http) = { get: "/api/v1/waiter/tips/today" };
   }
 
   rpc UpdateProfile(UpdateProfileRequest) returns (User) {
-    option (google.api.http) = { put: "/api/profile" body: "*" };
+    option (google.api.http) = { put: "/api/v1/profile" body: "*" };
   }
 
   rpc ChangePassword(ChangePasswordRequest) returns (Empty) {
-    option (google.api.http) = { post: "/api/profile/password" body: "*" };
+    option (google.api.http) = { post: "/api/v1/profile/password" body: "*" };
   }
 }
 
@@ -447,51 +447,51 @@ message GetManagerStatsResponse {
 
 service ManagerService {
   rpc GetMenu(Empty) returns (GetMenuResponse) {
-    option (google.api.http) = { get: "/api/manager/menu" };
+    option (google.api.http) = { get: "/api/v1/manager/menu" };
   }
 
   rpc CreateDish(CreateDishRequest) returns (Dish) {
-    option (google.api.http) = { post: "/api/manager/dishes" body: "*" };
+    option (google.api.http) = { post: "/api/v1/manager/dishes" body: "*" };
   }
 
   rpc DeleteDish(DeleteDishRequest) returns (Empty) {
-    option (google.api.http) = { delete: "/api/manager/dishes/{id}" };
+    option (google.api.http) = { delete: "/api/v1/manager/dishes/{id}" };
   }
 
   rpc GetVenue(Empty) returns (Venue) {
-    option (google.api.http) = { get: "/api/manager/venue" };
+    option (google.api.http) = { get: "/api/v1/manager/venue" };
   }
 
   rpc UpdateVenue(UpdateVenueRequest) returns (Venue) {
-    option (google.api.http) = { put: "/api/manager/venue" body: "*" };
+    option (google.api.http) = { put: "/api/v1/manager/venue" body: "*" };
   }
 
   rpc GetWaiters(Empty) returns (GetManagerWaitersResponse) {
-    option (google.api.http) = { get: "/api/manager/waiters" };
+    option (google.api.http) = { get: "/api/v1/manager/waiters" };
   }
 
   rpc CreateWaiter(CreateWaiterAccountRequest) returns (User) {
-    option (google.api.http) = { post: "/api/manager/waiters" body: "*" };
+    option (google.api.http) = { post: "/api/v1/manager/waiters" body: "*" };
   }
 
   rpc DeleteWaiter(DeleteWaiterRequest) returns (Empty) {
-    option (google.api.http) = { delete: "/api/manager/waiters/{id}" };
+    option (google.api.http) = { delete: "/api/v1/manager/waiters/{id}" };
   }
 
   rpc GetTables(Empty) returns (GetManagerTablesResponse) {
-    option (google.api.http) = { get: "/api/manager/tables" };
+    option (google.api.http) = { get: "/api/v1/manager/tables" };
   }
 
   rpc CreateTable(CreateTableRequest) returns (Table) {
-    option (google.api.http) = { post: "/api/manager/tables" body: "*" };
+    option (google.api.http) = { post: "/api/v1/manager/tables" body: "*" };
   }
 
   rpc DeleteTable(DeleteTableRequest) returns (Empty) {
-    option (google.api.http) = { delete: "/api/manager/tables/{table_id}" };
+    option (google.api.http) = { delete: "/api/v1/manager/tables/{table_id}" };
   }
 
   rpc GetStats(Empty) returns (GetManagerStatsResponse) {
-    option (google.api.http) = { get: "/api/manager/stats" };
+    option (google.api.http) = { get: "/api/v1/manager/stats" };
   }
 }
 
@@ -523,18 +523,18 @@ message GetAdminStatsResponse {
 
 service AdminService {
   rpc GetManagers(Empty) returns (GetManagersResponse) {
-    option (google.api.http) = { get: "/api/admin/managers" };
+    option (google.api.http) = { get: "/api/v1/admin/managers" };
   }
 
   rpc CreateManager(CreateManagerRequest) returns (User) {
-    option (google.api.http) = { post: "/api/admin/managers" body: "*" };
+    option (google.api.http) = { post: "/api/v1/admin/managers" body: "*" };
   }
 
   rpc DeleteManager(DeleteManagerRequest) returns (Empty) {
-    option (google.api.http) = { delete: "/api/admin/managers/{id}" };
+    option (google.api.http) = { delete: "/api/v1/admin/managers/{id}" };
   }
 
   rpc GetStats(Empty) returns (GetAdminStatsResponse) {
-    option (google.api.http) = { get: "/api/admin/stats" };
+    option (google.api.http) = { get: "/api/v1/admin/stats" };
   }
 }
