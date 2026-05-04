@@ -1,31 +1,25 @@
-version: "2" 
+version: "2"
 
 run:
   timeout: 5m
-  go: "1.26"
 
 linters:
-  disable-all: true
+  default: none          # заменяет disable-all: true
   enable:
-    - govet     
-    - errcheck  
-    - gocyclo   
-
-linters-settings:
-  gocyclo:
-    min-complexity: 50  
-
-  errcheck:
-    check-type-assertions: false
-    check-blank: false
-
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - errcheck
-    - path: "main\\.go"
-      linters:
-        - errcheck
+    - govet
+    - errcheck
+    - gocyclo
+  settings:              # заменяет linters-settings:
+    gocyclo:
+      min-complexity: 50
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+  exclusions:            # заменяет issues.exclude-rules:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+      - path: "main\\.go"
+        linters:
+          - errcheck
