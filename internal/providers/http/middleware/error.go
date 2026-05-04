@@ -11,7 +11,13 @@ import (
 	"github.com/tiptop-co/backend/internal/providers/http/ctxclaims"
 	jwttokens "github.com/tiptop-co/backend/internal/providers/tokens/jwt"
 	"github.com/tiptop-co/backend/internal/usecase/auth"
+	"github.com/tiptop-co/backend/internal/usecase/menu"
+	orderusecase "github.com/tiptop-co/backend/internal/usecase/order"
 	"github.com/tiptop-co/backend/internal/usecase/table"
+	tableclose "github.com/tiptop-co/backend/internal/usecase/table_close"
+	txusecase "github.com/tiptop-co/backend/internal/usecase/transaction"
+	userusecase "github.com/tiptop-co/backend/internal/usecase/user"
+	wrusecase "github.com/tiptop-co/backend/internal/usecase/waiter_request"
 )
 
 type ErrorResponse struct {
@@ -73,6 +79,40 @@ func mapError(err error) (int, string) {
 		errors.Is(err, jwttokens.ErrInvalidClaims),
 		errors.Is(err, jwttokens.ErrInvalidSigningMethod):
 		return http.StatusUnauthorized, "invalid_token"
+
+	// MENU
+	case errors.Is(err, menu.ErrInvalidWeightUnit),
+		errors.Is(err, menu.ErrCategoryNotInVenue):
+		return http.StatusBadRequest, "bad_request"
+
+	// ORDER
+	case errors.Is(err, orderusecase.ErrEmptyItems),
+		errors.Is(err, orderusecase.ErrDishWrongVenue),
+		errors.Is(err, orderusecase.ErrTableNotFound):
+		return http.StatusBadRequest, "bad_request"
+
+	// TRANSACTION
+	case errors.Is(err, txusecase.ErrItemAlreadyPaid):
+		return http.StatusConflict, "item_already_paid"
+	case errors.Is(err, txusecase.ErrItemNotInOrder),
+		errors.Is(err, txusecase.ErrEmptyItemList):
+		return http.StatusBadRequest, "bad_request"
+	case errors.Is(err, txusecase.ErrPaymentFailed):
+		return http.StatusPaymentRequired, "payment_failed"
+
+	// USER
+	case errors.Is(err, userusecase.ErrInvalidPhone):
+		return http.StatusBadRequest, "invalid_phone"
+
+	// TABLE CLOSE
+	case errors.Is(err, tableclose.ErrUnpaidItems):
+		return http.StatusConflict, "table_has_unpaid_items"
+
+	// WAITER REQUEST
+	case errors.Is(err, wrusecase.ErrCallNotAllowed):
+		return http.StatusConflict, "call_not_allowed"
+	case errors.Is(err, wrusecase.ErrNotOwnRequest):
+		return http.StatusForbidden, "forbidden"
 
 	// TABLE
 	case errors.Is(err, table.ErrTableIsOccupied):

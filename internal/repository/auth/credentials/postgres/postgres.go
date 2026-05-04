@@ -49,11 +49,11 @@ func (r *CredsRepository) GetPasswordByID(ctx context.Context, userID string) (s
 
 func (r *CredsRepository) GetAuthInfoByLogin(ctx context.Context, login string) (*auth.AuthInfo, error) {
 	const query = `
-		SELECT 
+		SELECT
 			c.password,
 			u.id,
 			u.role,
-			u.venue_id
+			COALESCE(u.venue_id, '')
 		FROM credentials c
 		JOIN users u ON u.id = c.user_id
 		WHERE c.login = $1
