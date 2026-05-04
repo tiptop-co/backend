@@ -48,7 +48,11 @@ func (r *VenueRepository) AssignManager(ctx context.Context, venueID, managerID 
 	if err != nil {
 		return fmt.Errorf("venue repository assign manager begin: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			fmt.Printf("err : %w", err)
+		}
+	}()
 
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET venue_id = $1 WHERE id = $2`,
