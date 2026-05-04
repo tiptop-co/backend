@@ -1,0 +1,29 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  disable-all: true
+  enable:
+    - govet     
+    - errcheck  
+    - gocyclo   
+
+linters-settings:
+  gocyclo:
+    min-complexity: 50  
+
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: "_test\\.go"
+      linters:
+        - errcheck
+    - path: "main\\.go"
+      linters:
+        - errcheck
