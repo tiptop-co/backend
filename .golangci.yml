@@ -1,0 +1,31 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none          # заменяет disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - gocyclo
+  settings:              # заменяет linters-settings:
+    gocyclo:
+      min-complexity: 50
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+  exclusions:            # заменяет issues.exclude-rules:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+      - path: "main\\.go"
+        linters:
+          - errcheck
+      - path: "internal/handler/auth/auth\\.go"
+        linters:
+          - errcheck
+      - path: "internal/repository/venue/postgres/repo\\.go"
+        linters:
+          - govet
