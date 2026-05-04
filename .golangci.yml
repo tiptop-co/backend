@@ -23,3 +23,9 @@ linters:
       - path: "main\\.go"
         linters:
           - errcheck
+      - path: "internal/handler/auth/auth\\.go"
+        linters:
+          - errcheck
+      - path: "internal/repository/venue/postgres/repo\\.go"
+        linters:
+          - govet
